@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - master
+      - dev
+      - main
       - release/*
   schedule:
     - cron: '0 6 * * *'
