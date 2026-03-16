@@ -13,8 +13,20 @@ on:
 
 jobs:
   test:
-    name: default
-    runs-on: windows-latest
+    name: default (${{ matrix.runner }}, VS ${{ matrix.vsversion }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2019
+            vsversion: "2019"
+          - runner: windows-2022
+            vsversion: "2022"
+          - runner: windows-2025
+            vsversion: "2022"
+          - runner: windows-2025-vs2026
+            vsversion: "2026"
     steps:
       - name: Check out source code
         uses: actions/checkout@v6
@@ -26,6 +38,7 @@ jobs:
         uses: ./
         with:
           arch: amd64
+          vsversion: ${{ matrix.vsversion }}
       - name: Compile and run some C code (amd64)
         shell: cmd
         run: |
@@ -35,6 +48,7 @@ jobs:
         uses: ./
         with:
           arch: amd64_x86
+          vsversion: ${{ matrix.vsversion }}
       - name: Compile and run some C code (x86)
         shell: cmd
         run: |
@@ -44,6 +58,7 @@ jobs:
         uses: ./
         with:
           arch: amd64_arm
+          vsversion: ${{ matrix.vsversion }}
       - name: Compile some C code (arm)
         shell: cmd
         run: |
@@ -53,6 +68,7 @@ jobs:
         uses: ./
         with:
           arch: amd64_arm64
+          vsversion: ${{ matrix.vsversion }}
       - name: Compile some C code (arm64)
         shell: cmd
         run: |
@@ -68,8 +84,18 @@ jobs:
       - run: npm audit --audit-level=moderate --production
       - run: npm audit --audit-level=critical
   alias-arch:
-    name: arch aliases
-    runs-on: windows-latest
+    name: arch aliases (${{ matrix.runner }}, VS ${{ matrix.vsversion }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2019
+            vsversion: "2019"
+          - runner: windows-2022
+            vsversion: "2022"
+          - runner: windows-2025
+            vsversion: "2022"
     steps:
       - name: Check out source code
         uses: actions/checkout@v6
@@ -79,6 +105,7 @@ jobs:
         uses: ./
         with:
           arch: Win32
+          vsversion: ${{ matrix.vsversion }}
       - name: Compile and run some C code
         shell: cmd
         run: |
