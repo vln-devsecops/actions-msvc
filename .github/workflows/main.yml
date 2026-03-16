@@ -19,9 +19,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: windows-2019
-            vsversion: "2019"
-            supports_arm32: true
           - runner: windows-2022
             vsversion: "2022"
             supports_arm32: true
@@ -96,8 +93,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: windows-2019
-            vsversion: "2019"
           - runner: windows-2022
             vsversion: "2022"
           - runner: windows-2025
