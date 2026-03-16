@@ -68,8 +68,8 @@ jobs:
         if: matrix.supports_arm32
         shell: cmd
         run: |
-          cl.exe hello.c
-          dumpbin /headers hello.exe
+          cl.exe /c hello.c
+          dumpbin /headers hello.obj
       - name: Enable Developer Command Prompt (amd64_arm64)
         uses: ./
         with:
@@ -78,8 +78,8 @@ jobs:
       - name: Compile some C code (arm64)
         shell: cmd
         run: |
-          cl.exe hello.c
-          dumpbin /headers hello.exe
+          cl.exe /c hello.c
+          dumpbin /headers hello.obj
   audit:
     name: npm audit
     runs-on: ubuntu-latest
