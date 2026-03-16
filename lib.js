@@ -113,7 +113,7 @@ function isPathVariable(name) {
 
 function filterPathValue(path) {
     let paths = path.split(';')
-    // Remove duplicates by keeping the first occurance and preserving order.
+    // Remove duplicates by keeping the first occurrence and preserving order.
     // This keeps path shadowing working as intended.
     function unique(value, index, self) {
         return self.indexOf(value) === index
