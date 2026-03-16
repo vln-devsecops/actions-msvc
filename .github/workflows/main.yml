@@ -21,12 +21,16 @@ jobs:
         include:
           - runner: windows-2019
             vsversion: "2019"
+            supports_arm32: true
           - runner: windows-2022
             vsversion: "2022"
+            supports_arm32: true
           - runner: windows-2025
             vsversion: "2022"
+            supports_arm32: true
           - runner: windows-2025-vs2026
             vsversion: "2026"
+            supports_arm32: false
     steps:
       - name: Check out source code
         uses: actions/checkout@v6
@@ -55,11 +59,13 @@ jobs:
           cl.exe hello.c
           hello.exe
       - name: Enable Developer Command Prompt (amd64_arm)
+        if: matrix.supports_arm32
         uses: ./
         with:
           arch: amd64_arm
           vsversion: ${{ matrix.vsversion }}
       - name: Compile some C code (arm)
+        if: matrix.supports_arm32
         shell: cmd
         run: |
           cl.exe hello.c
