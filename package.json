@@ -6,7 +6,7 @@
   "scripts": {
     "build": "ncc build -m index.js -o dist",
     "lint": "eslint index.js",
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test test/*.test.js"
   },
   "repository": {
     "type": "git",

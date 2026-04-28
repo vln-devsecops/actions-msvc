@@ -36,6 +36,7 @@ jobs:
       - name: Run eslint
         run: npm run lint
       - name: Run unit tests
+        shell: bash
         run: npm test
       - name: Enable Developer Command Prompt (amd64)
         uses: ./
