@@ -1,4 +1,4 @@
-<a href="https://github.com/ilammy/msvc-dev-cmd"><img alt="GitHub Actions status" src="https://github.com/ilammy/msvc-dev-cmd/workflows/msvc-dev-cmd/badge.svg"></a>
+<a href="https://github.com/vln-devsecops/actions-msvc"><img alt="GitHub Actions status" src="https://github.com/vln-devsecops/actions-msvc/workflows/msvc-dev-cmd/badge.svg"></a>
 
 # msvc-dev-cmd
 
@@ -17,7 +17,7 @@ jobs:
   test:
     steps:
       - uses: actions/checkout@v5
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: vln-devsecops/actions-msvc@v1
       - name: Build something requiring CL.EXE
         run: |
           cmake -G "NMake Makefiles" .
@@ -42,7 +42,7 @@ jobs:
           - amd64_arm64
     steps:
       - uses: actions/checkout@v5
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: vln-devsecops/actions-msvc@v1
         with:
           arch: ${{ matrix.arch }}
       - name: Build something requiring CL.EXE
@@ -90,7 +90,7 @@ If this is not acceptable, please file an issue, then we'll figure out something
 
 ### Reconfiguration
 
-You can invoke `ilammy/msvc-dev-cmd` multiple times during your jobs with different inputs
+You can invoke `vln-devsecops/actions-msvc` multiple times during your jobs with different inputs
 to reconfigure the environment for building with different settings
 (e.g., to target multiple architectures).
 
@@ -100,21 +100,21 @@ jobs:
     steps:
       # ...
       - name: Configure build for amd64
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: vln-devsecops/actions-msvc@v1
         with:
           arch: amd64
 
       - run: build # (for amd64)
 
       - name: Configure build for x86
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: vln-devsecops/actions-msvc@v1
         with:
           arch: amd64_x86
 
       - run: build # (for x86)
 
       - name: Configure build for ARM64
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: vln-devsecops/actions-msvc@v1
         with:
           arch: amd64_arm64
 
