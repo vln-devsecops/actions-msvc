@@ -1,8 +1,10 @@
 <a href="https://github.com/vln-devsecops/actions-msvc"><img alt="GitHub Actions status" src="https://github.com/vln-devsecops/actions-msvc/workflows/msvc-dev-cmd/badge.svg"></a>
 
-# msvc-dev-cmd
+# actions-msvc
 
 [GitHub Action](https://github.com/features/actions) for configuring Developer Command Prompt for Microsoft Visual C++.
+
+This repository publishes the action as `vln-devsecops/actions-msvc`, while continuing the upstream `ilammy/msvc-dev-cmd` work.
 
 This sets up the environment for compiling C/C++ code from command line.
 
@@ -80,7 +82,7 @@ Using `shell: bash` in Actions may shadow some of the paths added by MSVC.
 In particular, `link.exe` (Microsoft C linker) is prone to be shadowed by `/usr/bin/link` (GNU filesystem link tool).
 
 Unfortunately, this happens because GitHub Actions unconditionally *prepend* GNU paths when `shell: bash` is used,
-on top of any paths set by `msvc-dev-cmd`, every time at the start of each new step.
+on top of any paths set by `vln-devsecops/actions-msvc`, every time at the start of each new step.
 Hence, there aren't many non-destructive options here.
 
 If you experience compilation errors where `link` complains about unreasonable command-line arguments,
