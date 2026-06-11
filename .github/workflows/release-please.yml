@@ -1,0 +1,38 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - dev # Assuming 'dev' is the main branch for this repo
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update package.json and action.yml version
+        if: steps.release.outputs.release_created
+        run: |
+          VERSION_TAG="${{ steps.release.outputs.tag_name }}"
+          # Update package.json version
+          sed -i "s/version\": \"[a-zA-Z0-9.-]*\"/version\": \"$VERSION_TAG\"/" package.json
+          # Update action.yml version - requires careful handling of version format
+          # Assuming action.yml uses a simple version string without 'v' prefix for node version
+          # Adjust sed command if action.yml has a different version format
+          sed -i "s/^\(\s*runs:\s*using:\s*['\"]node[0-9]*['\"]\s*main:\s*main.js\s*\)/runs:\n    using: node/24\n    main: dist\/index.js)/" action.yml # Example for node24; original had "using: node24"
+          sed -i "s/^\(\s*runs:\s*using:\s*node[0-9]*\s*main:\s*\).*/${VERSION_TAG//v/}/" action.yml # This attempts to update the version in action.yml if it's directly specified there
+          git config user.name "OpenClaw"
+          git config user.email "openclaw@example.com"
+          git add package.json action.yml
+          git commit -m "CI: Update versions according to release-please"
+          git push origin add-release-please
+          gh pr create --base dev --head add-release-please --title "CI: Add release-please automation" --body "This PR adds release-please configuration to automate versioning and releases for package.json and action.yml." --repo vln-devsecops/actions-msvc
