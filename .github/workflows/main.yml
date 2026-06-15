@@ -94,6 +94,8 @@ jobs:
         include:
           - runner: windows-2022
             vsversion: "2022"
+          - runner: windows-2025-vs2026
+            vsversion: "2026"
     steps:
       - name: Check out source code
         uses: actions/checkout@v6
