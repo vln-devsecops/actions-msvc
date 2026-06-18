@@ -28,10 +28,12 @@ function loadLib({
 test('version helpers convert Visual Studio year and version strings', () => {
     const lib = loadLib()
 
+    assert.equal(lib.vsversion_to_versionnumber('2026'), '18.0')
     assert.equal(lib.vsversion_to_versionnumber('2022'), '17.0')
     assert.equal(lib.vsversion_to_versionnumber('17.0'), '17.0')
     assert.equal(lib.vsversion_to_versionnumber('custom'), 'custom')
 
+    assert.equal(lib.vsversion_to_year('18.0'), '2026')
     assert.equal(lib.vsversion_to_year('17.0'), '2022')
     assert.equal(lib.vsversion_to_year('2022'), '2022')
     assert.equal(lib.vsversion_to_year('custom'), 'custom')
@@ -113,6 +115,37 @@ test('findVcvarsall prefers the vswhere result when the file exists', () => {
     assert.equal(lib.findVcvarsall('2022'), 'C:\\VS\\2022\\VC\\Auxiliary\\Build\\vcvarsall.bat')
     assert.match(vswhereCommand, /-version "17\.0,17\.9"/)
     assert.ok(infos.some((message) => message.includes('Found with vswhere')))
+})
+
+test('findVcvarsall queries the VS 2026 version range when requested', () => {
+    let vswhereCommand
+    const lib = loadLib({
+        core: {
+            info() {},
+            warning() {},
+        },
+        childProcess: {
+            execSync(command) {
+                vswhereCommand = command
+                return Buffer.from('C:\\VS\\2026\n')
+            },
+        },
+        fs: {
+            existsSync(candidate) {
+                return candidate === 'C:\\VS\\2026\\VC\\Auxiliary\\Build\\vcvarsall.bat'
+            },
+        },
+        processObject: {
+            env: {
+                'ProgramFiles(x86)': 'C:\\PF86',
+                ProgramFiles: 'C:\\PF',
+            },
+            platform: 'win32',
+        },
+    })
+
+    assert.equal(lib.findVcvarsall('2026'), 'C:\\VS\\2026\\VC\\Auxiliary\\Build\\vcvarsall.bat')
+    assert.match(vswhereCommand, /-version "18\.0,18\.9"/)
 })
 
 test('findVcvarsall falls back to standard installation locations', () => {
