@@ -32,7 +32,8 @@
     "@actions/core": "^1.11.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@vercel/ncc": "^0.38.3",
-    "eslint": "^7"
+    "eslint": "^10"
   }
 }
