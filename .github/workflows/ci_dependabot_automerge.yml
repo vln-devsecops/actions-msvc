@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  checks: read
 
 jobs:
   automerge:
@@ -19,6 +20,59 @@ jobs:
         uses: dependabot/fetch-metadata@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # gh pr merge --auto only actually waits for something if the repo has
+      # required status checks configured via branch protection/rulesets.
+      # This polls the other check runs on the same commit directly as
+      # defense-in-depth, so a failure anywhere blocks the merge step below
+      # regardless of whether that config is in place or later lapses -
+      # see vln-devsecops/actions-msvc#10.
+      - name: Wait for other checks on this commit
+        if: >-
+          steps.meta.outputs.update-type == 'version-update:semver-minor' ||
+          steps.meta.outputs.update-type == 'version-update:semver-patch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Give sibling pull_request-triggered workflows (main.yml's test,
+          # audit, and alias-arch jobs) a moment to register their check
+          # runs before the first poll, so an empty/short result here can't
+          # be mistaken for "nothing to wait for".
+          sleep 25
+
+          max_attempts=40
+          interval=15
+          for attempt in $(seq 1 "$max_attempts"); do
+            # --paginate emits one JSON document per page; piping the
+            # --slurped array of pages through a single trailing jq (rather
+            # than --jq on the gh api call itself) keeps runs_json a single
+            # well-formed array even once check-runs spans more than one
+            # page, instead of silently concatenating multiple arrays into
+            # invalid JSON.
+            runs_json=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs" --paginate --slurp | jq '[.[] | .check_runs[] | select(.name != "automerge")]')
+
+            incomplete=$(echo "$runs_json" | jq 'map(select(.status != "completed")) | length')
+            if [ "$incomplete" -gt 0 ]; then
+              echo "Attempt $attempt/$max_attempts: $incomplete check(s) still running, waiting ${interval}s..."
+              sleep "$interval"
+              continue
+            fi
+
+            failed=$(echo "$runs_json" | jq 'map(select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral"))')
+            failed_count=$(echo "$failed" | jq 'length')
+            if [ "$failed_count" -gt 0 ]; then
+              echo "$failed_count check(s) did not succeed:"
+              echo "$failed" | jq -r '.[] | "- \(.name): \(.conclusion)"'
+              exit 1
+            fi
+
+            echo "All other checks on $SHA succeeded."
+            exit 0
+          done
+
+          echo "Timed out after $((max_attempts * interval))s waiting for other checks to complete."
+          exit 1
 
       - name: Approve and enable auto-merge for minor and patch updates
         if: >-
