@@ -11,6 +11,16 @@ on:
   schedule:
     - cron: '0 6 * * *'
 
+# The `dev` branch's branch protection requires specific check-run names by
+# exact string match (Settings > Branches > required status checks). The
+# `test` and `alias-arch` jobs below derive their check names from their
+# `name:` template plus each matrix entry (e.g. "default (windows-2022, VS
+# 2022)"), so adding, removing, or renaming a matrix entry changes which
+# check names actually get reported - and any required check that's no
+# longer reported blocks every future PR forever (see #10, where this
+# happened within a day of the requirement being set up). Whenever this
+# matrix changes, update the required status checks list on `dev` to match
+# in the same PR.
 jobs:
   test:
     name: default (${{ matrix.runner }}, VS ${{ matrix.vsversion }})
