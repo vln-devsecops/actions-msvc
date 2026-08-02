@@ -119,16 +119,24 @@ jobs:
             exit 0
           done
 
-      # GITHUB_TOKEN cannot approve pull requests, so this step needs a
-      # fine-grained PAT (DEPENDABOT_AUTOMERGE_TOKEN). That is also why the
-      # trigger is pull_request_target and not pull_request: a Dependabot PR
-      # running under pull_request gets a read-only token and no access to
-      # repository secrets, so the PAT would not be readable at all.
+      # Token: prefer the fine-grained PAT, fall back to GITHUB_TOKEN.
+      # GITHUB_TOKEN can only approve a PR when the org/repo setting "Allow
+      # GitHub Actions to create and approve pull requests" is enabled - it is
+      # off by default, and where it is off the approve step fails and nothing
+      # merges. The PAT works either way, so it is preferred; the fallback
+      # keeps this template usable verbatim in repos that have not been
+      # provisioned with one yet. Check which case a repo is in with:
+      #   gh api repos/<org>/<repo>/actions/permissions/workflow \
+      #     --jq .can_approve_pull_request_reviews
+      #
+      # The trigger is pull_request_target, not pull_request, because a
+      # Dependabot PR running under pull_request cannot read Actions secrets -
+      # the PAT would silently evaluate to empty there.
       #
       # SECURITY: this job must never check out or execute PR head code.
       # pull_request_target runs with repository secrets against the base
-      # branch; adding actions/checkout of the PR head here would expose
-      # DEPENDABOT_AUTOMERGE_TOKEN to code from the PR branch.
+      # branch; adding actions/checkout of the PR head here would expose those
+      # secrets to code from the PR branch.
       - name: Approve and enable auto-merge for minor/patch updates
         if: >
           steps.meta.outputs.update-type == 'version-update:semver-minor' ||
@@ -138,4 +146,5 @@ jobs:
           gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN }}
+          GH_TOKEN: >-
+            ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
