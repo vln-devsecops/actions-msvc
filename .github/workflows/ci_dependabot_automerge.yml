@@ -21,9 +21,34 @@ jobs:
   automerge:
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
+    env:
+      # Auto-merge is opt-in per repository, and provisioning
+      # DEPENDABOT_AUTOMERGE_TOKEN is what opts in. Without it every step
+      # below skips and the PR is left for a human.
+      #
+      # There is deliberately no fallback to GITHUB_TOKEN. GITHUB_TOKEN can
+      # only approve when the org/repo setting "Allow GitHub Actions to create
+      # and approve pull requests" is enabled, so falling back would make
+      # whether a repo auto-merges depend on an org-level setting nobody sets
+      # per repo - and would silently start auto-merging in repos where that
+      # was never the intent. Dormant is the safe failure here: a human
+      # merging is a fine outcome, an unintended auto-merge is not.
+      #
+      # secrets is not an allowed context in `if:`, so it is surfaced through
+      # job-level env, where it is allowed.
+      HAS_AUTOMERGE_PAT: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN != '' }}
     steps:
+      - name: Report that auto-merge is not enabled
+        if: env.HAS_AUTOMERGE_PAT != 'true'
+        run: |
+          echo "::notice::DEPENDABOT_AUTOMERGE_TOKEN is not set for this \
+          repository, so Dependabot auto-merge is disabled and this PR will \
+          not be merged automatically. See runbooks/dependabot-automerge.md \
+          in vln-devsecops/guidance to provision it."
+
       - name: Fetch Dependabot metadata
         id: meta
+        if: env.HAS_AUTOMERGE_PAT == 'true'
         uses: dependabot/fetch-metadata@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -39,8 +64,9 @@ jobs:
       # tier and does not depend on branch-protection config staying correct.
       - name: Wait for other checks on this commit
         if: >
-          steps.meta.outputs.update-type == 'version-update:semver-minor' ||
-          steps.meta.outputs.update-type == 'version-update:semver-patch'
+          env.HAS_AUTOMERGE_PAT == 'true' &&
+          (steps.meta.outputs.update-type == 'version-update:semver-minor' ||
+          steps.meta.outputs.update-type == 'version-update:semver-patch')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -119,19 +145,13 @@ jobs:
             exit 0
           done
 
-      # Token: prefer the fine-grained PAT, fall back to GITHUB_TOKEN.
-      # GITHUB_TOKEN can only approve a PR when the org/repo setting "Allow
-      # GitHub Actions to create and approve pull requests" is enabled - it is
-      # off by default, and where it is off the approve step fails and nothing
-      # merges. The PAT works either way, so it is preferred; the fallback
-      # keeps this template usable verbatim in repos that have not been
-      # provisioned with one yet. Check which case a repo is in with:
-      #   gh api repos/<org>/<repo>/actions/permissions/workflow \
-      #     --jq .can_approve_pull_request_reviews
+      # Approves with the fine-grained PAT only - see HAS_AUTOMERGE_PAT above
+      # for why there is no GITHUB_TOKEN fallback.
       #
       # The trigger is pull_request_target, not pull_request, because a
       # Dependabot PR running under pull_request cannot read Actions secrets -
-      # the PAT would silently evaluate to empty there.
+      # the PAT would silently evaluate to empty there, and this workflow
+      # would then skip in every repo rather than only the unprovisioned ones.
       #
       # SECURITY: this job must never check out or execute PR head code.
       # pull_request_target runs with repository secrets against the base
@@ -139,12 +159,12 @@ jobs:
       # secrets to code from the PR branch.
       - name: Approve and enable auto-merge for minor/patch updates
         if: >
-          steps.meta.outputs.update-type == 'version-update:semver-minor' ||
-          steps.meta.outputs.update-type == 'version-update:semver-patch'
+          env.HAS_AUTOMERGE_PAT == 'true' &&
+          (steps.meta.outputs.update-type == 'version-update:semver-minor' ||
+          steps.meta.outputs.update-type == 'version-update:semver-patch')
         run: |
           gh pr review --approve "$PR_URL"
           gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: >-
-            ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN }}
