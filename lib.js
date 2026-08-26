@@ -9,7 +9,7 @@ const PROGRAM_FILES = [process.env['ProgramFiles(x86)'], process.env['ProgramFil
 
 
 const EDITIONS = ['Enterprise', 'Professional', 'Community', 'BuildTools']
-const YEARS = ['2022', '2019', '2017']
+const YEARS = ['2022', '2019', '2017', '2026']
 
 const VsYearVersion = {
     '2026': '18.0',
