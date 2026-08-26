@@ -113,7 +113,7 @@ test('findVcvarsall prefers the vswhere result when the file exists', () => {
     })
 
     assert.equal(lib.findVcvarsall('2022'), 'C:\\VS\\2022\\VC\\Auxiliary\\Build\\vcvarsall.bat')
-    assert.match(vswhereCommand, /-version "17\.0,17\.9"/)
+    assert.match(vswhereCommand, /-version "\[17\.0,18\.0\)"/)
     assert.ok(infos.some((message) => message.includes('Found with vswhere')))
 })
 
@@ -145,7 +145,43 @@ test('findVcvarsall queries the VS 2026 version range when requested', () => {
     })
 
     assert.equal(lib.findVcvarsall('2026'), 'C:\\VS\\2026\\VC\\Auxiliary\\Build\\vcvarsall.bat')
-    assert.match(vswhereCommand, /-version "18\.0,18\.9"/)
+    assert.match(vswhereCommand, /-version "\[18\.0,19\.0\)"/)
+})
+
+test('findVcvarsall uses an exclusive upper bound so point releases like .9 are still in range', () => {
+    // Visual Studio 2026 shipped as installationVersion 18.9.12112.369. The
+    // previous "major.9" upper bound (e.g. "18.0,18.9") treated ".9" as
+    // "18.9.0.0" and excluded any point release whose own version already
+    // reached .9, which is exactly what happened here.
+    let vswhereCommand
+    const lib = loadLib({
+        core: {
+            info() {},
+            warning() {},
+        },
+        childProcess: {
+            execSync(command) {
+                vswhereCommand = command
+                return Buffer.from('C:\\VS\\2026\n')
+            },
+        },
+        fs: {
+            existsSync(candidate) {
+                return candidate === 'C:\\VS\\2026\\VC\\Auxiliary\\Build\\vcvarsall.bat'
+            },
+        },
+        processObject: {
+            env: {
+                'ProgramFiles(x86)': 'C:\\PF86',
+                ProgramFiles: 'C:\\PF',
+            },
+            platform: 'win32',
+        },
+    })
+
+    lib.findVcvarsall('2026')
+    assert.doesNotMatch(vswhereCommand, /-version "18\.0,18\.9"/)
+    assert.match(vswhereCommand, /-version "\[18\.0,19\.0\)"/)
 })
 
 test('findVcvarsall falls back to standard installation locations', () => {

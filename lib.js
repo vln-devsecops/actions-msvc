@@ -101,8 +101,12 @@ function findVcvarsall(vsversion) {
     const vsversion_number = vsversion_to_versionnumber(vsversion)
     let version_pattern
     if (vsversion_number) {
-        const upper_bound = vsversion_number.split('.')[0] + '.9'
-        version_pattern = `-version "${vsversion_number},${upper_bound}"`
+        // Use an exclusive upper bound of the next major version rather than
+        // "major.9": a bare ".9" is compared as "major.9.0.0", which excludes
+        // any point release whose own version has already reached .9 (e.g.
+        // Visual Studio 2026 shipping as 18.9.12112.369).
+        const major = parseInt(vsversion_number.split('.')[0], 10)
+        version_pattern = `-version "[${major}.0,${major + 1}.0)"`
     } else {
         version_pattern = "-latest"
     }
