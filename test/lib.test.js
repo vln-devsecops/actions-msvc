@@ -113,7 +113,7 @@ test('findVcvarsall prefers the vswhere result when the file exists', () => {
     })
 
     assert.equal(lib.findVcvarsall('2022'), 'C:\\VS\\2022\\VC\\Auxiliary\\Build\\vcvarsall.bat')
-    assert.match(vswhereCommand, /-version "17\.0,17\.9"/)
+    assert.match(vswhereCommand, /-version "\[17\.0,18\.0\)"/)
     assert.ok(infos.some((message) => message.includes('Found with vswhere')))
 })
 
@@ -145,7 +145,43 @@ test('findVcvarsall queries the VS 2026 version range when requested', () => {
     })
 
     assert.equal(lib.findVcvarsall('2026'), 'C:\\VS\\2026\\VC\\Auxiliary\\Build\\vcvarsall.bat')
-    assert.match(vswhereCommand, /-version "18\.0,18\.9"/)
+    assert.match(vswhereCommand, /-version "\[18\.0,19\.0\)"/)
+})
+
+test('findVcvarsall uses an exclusive upper bound so point releases like .9 are still in range', () => {
+    // Visual Studio 2026 shipped as installationVersion 18.9.12112.369. The
+    // previous "major.9" upper bound (e.g. "18.0,18.9") treated ".9" as
+    // "18.9.0.0" and excluded any point release whose own version already
+    // reached .9, which is exactly what happened here.
+    let vswhereCommand
+    const lib = loadLib({
+        core: {
+            info() {},
+            warning() {},
+        },
+        childProcess: {
+            execSync(command) {
+                vswhereCommand = command
+                return Buffer.from('C:\\VS\\2026\n')
+            },
+        },
+        fs: {
+            existsSync(candidate) {
+                return candidate === 'C:\\VS\\2026\\VC\\Auxiliary\\Build\\vcvarsall.bat'
+            },
+        },
+        processObject: {
+            env: {
+                'ProgramFiles(x86)': 'C:\\PF86',
+                ProgramFiles: 'C:\\PF',
+            },
+            platform: 'win32',
+        },
+    })
+
+    lib.findVcvarsall('2026')
+    assert.doesNotMatch(vswhereCommand, /-version "18\.0,18\.9"/)
+    assert.match(vswhereCommand, /-version "\[18\.0,19\.0\)"/)
 })
 
 test('findVcvarsall falls back to standard installation locations', () => {
@@ -181,9 +217,12 @@ test('findVcvarsall falls back to standard installation locations', () => {
 })
 
 test('findVcvarsall throws when no Visual Studio installation can be found', () => {
+    const infos = []
     const lib = loadLib({
         core: {
-            info() {},
+            info(message) {
+                infos.push(message)
+            },
             warning() {},
         },
         childProcess: {
@@ -206,6 +245,143 @@ test('findVcvarsall throws when no Visual Studio installation can be found', () 
     })
 
     assert.throws(() => lib.findVcvarsall(), /Microsoft Visual Studio not found/)
+    assert.ok(infos.some((message) => message.includes('No Visual Studio installations were found at all')))
+})
+
+test('findVcvarsall logs other installed versions it found when the requested version is missing', () => {
+    const infos = []
+    const lib = loadLib({
+        core: {
+            info(message) {
+                infos.push(message)
+            },
+            warning() {},
+        },
+        childProcess: {
+            execSync(command) {
+                // The version-scoped vswhere query (used to look for the
+                // requested version) finds nothing, because the installed
+                // instance's version falls outside the "18.0,18.9" bound ...
+                if (command.includes('-version')) {
+                    return Buffer.from('\n')
+                }
+                // ... but the version-less diagnostic query finds it's
+                // actually installed under a version-numbered directory
+                // rather than a year-named one.
+                return Buffer.from(JSON.stringify([
+                    {installationPath: 'C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise', installationVersion: '19.0.1234.56'},
+                ]))
+            },
+        },
+        fs: {
+            existsSync() {
+                return false
+            },
+        },
+        processObject: {
+            env: {
+                'ProgramFiles(x86)': 'C:\\PF86',
+                ProgramFiles: 'C:\\PF',
+            },
+            platform: 'win32',
+        },
+    })
+
+    assert.throws(() => lib.findVcvarsall('2026'), /Microsoft Visual Studio not found/)
+    assert.ok(infos.some((message) => message.includes('Could not find Visual Studio 2026, but found these installations instead:')))
+    assert.ok(infos.some((message) => message.includes('vswhere: 19.0.1234.56 at C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise')))
+})
+
+test('findAllVersions reports installations found via vswhere and standard locations', () => {
+    const lib = loadLib({
+        core: {warning() {}},
+        childProcess: {
+            execSync(command) {
+                assert.match(command, /^vswhere -products \* -prerelease -format json$/)
+                return Buffer.from(JSON.stringify([
+                    {installationPath: 'C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise', installationVersion: '19.0.1234.56'},
+                    {installationPath: 'C:\\VS\\2019', installationVersion: '16.11.9.0'},
+                ]))
+            },
+        },
+        fs: {
+            existsSync(candidate) {
+                return candidate === 'C:\\PF86\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat'
+            },
+        },
+        processObject: {
+            env: {
+                'ProgramFiles(x86)': 'C:\\PF86',
+                ProgramFiles: 'C:\\PF',
+            },
+            platform: 'win32',
+        },
+    })
+
+    assert.deepEqual([...lib.findAllVersions()], [
+        'vswhere: 19.0.1234.56 at C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise',
+        'vswhere: 16.11.9.0 at C:\\VS\\2019',
+        'standard location: C:\\PF86\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat',
+    ])
+})
+
+test('findAllVersions falls back to standard locations when vswhere fails', () => {
+    const warnings = []
+    const lib = loadLib({
+        core: {
+            warning(message) {
+                warnings.push(message)
+            },
+        },
+        childProcess: {
+            execSync() {
+                throw new Error('vswhere missing')
+            },
+        },
+        fs: {
+            existsSync(candidate) {
+                return candidate === 'C:\\PF\\Microsoft Visual Studio\\2026\\BuildTools\\VC\\Auxiliary\\Build\\vcvarsall.bat'
+            },
+        },
+        processObject: {
+            env: {
+                'ProgramFiles(x86)': 'C:\\PF86',
+                ProgramFiles: 'C:\\PF',
+            },
+            platform: 'win32',
+        },
+    })
+
+    assert.deepEqual([...lib.findAllVersions()], [
+        'standard location: C:\\PF\\Microsoft Visual Studio\\2026\\BuildTools\\VC\\Auxiliary\\Build\\vcvarsall.bat',
+    ])
+    assert.equal(warnings.length, 1)
+    assert.match(warnings[0], /vswhere failed:/)
+})
+
+test('findAllVersions returns an empty array when nothing is installed', () => {
+    const lib = loadLib({
+        core: {warning() {}},
+        childProcess: {
+            execSync() {
+                return Buffer.from('[]')
+            },
+        },
+        fs: {
+            existsSync() {
+                return false
+            },
+        },
+        processObject: {
+            env: {
+                'ProgramFiles(x86)': 'C:\\PF86',
+                ProgramFiles: 'C:\\PF',
+            },
+            platform: 'win32',
+        },
+    })
+
+    assert.deepEqual([...lib.findAllVersions()], [])
 })
 
 test('setupMSVCDevCmd is a no-op on non-Windows runners', () => {
