@@ -224,13 +224,17 @@ test('findVcvarsall logs other installed versions it found when the requested ve
         childProcess: {
             execSync(command) {
                 // The version-scoped vswhere query (used to look for the
-                // requested version) finds nothing ...
+                // requested version) finds nothing, because the installed
+                // instance's version falls outside the "18.0,18.9" bound ...
                 if (command.includes('-version')) {
                     return Buffer.from('\n')
                 }
-                // ... but the version-less diagnostic query finds VS 2022 is
-                // actually installed.
-                return Buffer.from('C:\\VS\\2022\n')
+                // ... but the version-less diagnostic query finds it's
+                // actually installed under a version-numbered directory
+                // rather than a year-named one.
+                return Buffer.from(JSON.stringify([
+                    {installationPath: 'C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise', installationVersion: '19.0.1234.56'},
+                ]))
             },
         },
         fs: {
@@ -249,7 +253,7 @@ test('findVcvarsall logs other installed versions it found when the requested ve
 
     assert.throws(() => lib.findVcvarsall('2026'), /Microsoft Visual Studio not found/)
     assert.ok(infos.some((message) => message.includes('Could not find Visual Studio 2026, but found these installations instead:')))
-    assert.ok(infos.some((message) => message.includes('vswhere: C:\\VS\\2022')))
+    assert.ok(infos.some((message) => message.includes('vswhere: 19.0.1234.56 at C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise')))
 })
 
 test('findAllVersions reports installations found via vswhere and standard locations', () => {
@@ -257,8 +261,11 @@ test('findAllVersions reports installations found via vswhere and standard locat
         core: {warning() {}},
         childProcess: {
             execSync(command) {
-                assert.match(command, /^vswhere -products \* -prerelease -property installationPath$/)
-                return Buffer.from('C:\\VS\\2022\nC:\\VS\\2019\n')
+                assert.match(command, /^vswhere -products \* -prerelease -format json$/)
+                return Buffer.from(JSON.stringify([
+                    {installationPath: 'C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise', installationVersion: '19.0.1234.56'},
+                    {installationPath: 'C:\\VS\\2019', installationVersion: '16.11.9.0'},
+                ]))
             },
         },
         fs: {
@@ -276,8 +283,8 @@ test('findAllVersions reports installations found via vswhere and standard locat
     })
 
     assert.deepEqual([...lib.findAllVersions()], [
-        'vswhere: C:\\VS\\2022',
-        'vswhere: C:\\VS\\2019',
+        'vswhere: 19.0.1234.56 at C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise',
+        'vswhere: 16.11.9.0 at C:\\VS\\2019',
         'standard location: C:\\PF86\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat',
     ])
 })
@@ -321,7 +328,7 @@ test('findAllVersions returns an empty array when nothing is installed', () => {
         core: {warning() {}},
         childProcess: {
             execSync() {
-                return Buffer.from('\n')
+                return Buffer.from('[]')
             },
         },
         fs: {

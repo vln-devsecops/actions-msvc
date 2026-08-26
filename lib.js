@@ -64,13 +64,17 @@ function findAllVersions() {
 
     // Ask vswhere about every Visual Studio installation it knows of,
     // regardless of version, so we have something to report when the
-    // requested version isn't among them.
+    // requested version isn't among them. Fetch full JSON (rather than a
+    // single -property) so we can report the actual installationVersion:
+    // that's what explains cases like Visual Studio 2026, which installs
+    // under a version-numbered directory (e.g. "18") instead of a
+    // year-named one, and whose installationVersion may not even fall
+    // within the "18.0,18.9" range findVcvarsall queries for.
     try {
-        const output = child_process.execSync(`vswhere -products * -prerelease -property installationPath`).toString().trim()
-        for (const installationPath of output.split(/\r?\n/)) {
-            if (installationPath) {
-                found.push(`vswhere: ${installationPath}`)
-            }
+        const output = child_process.execSync(`vswhere -products * -prerelease -format json`).toString().trim()
+        const instances = output ? JSON.parse(output) : []
+        for (const instance of instances) {
+            found.push(`vswhere: ${instance.installationVersion} at ${instance.installationPath}`)
         }
     } catch (e) {
         core.warning(`vswhere failed: ${e}`)
